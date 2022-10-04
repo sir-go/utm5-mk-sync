@@ -1,0 +1,80 @@
+[shape]
+ignore_ids = []
+rebalance_threshold = 500.0
+
+[[shape.devices]]
+    addr = "shaper.mk.tih.ru:8728"
+    username = ""
+    password = ""
+    coef = 0.3
+
+[[shape.devices]]
+    addr = "router.mk.tih.ru:8728"
+    username = ""
+    password = ""
+    coef = 1.0
+
+[firewall]
+    addr = "router.mk.tih.ru:8728"
+    username = ""
+    password = ""
+
+[acl]
+    list_allow = "Allow"
+    list_deny = "Deny"
+
+[[pppoe]]
+    addr = "ppp0.mk.kor.tih.ru:8728"
+    username = ""
+    password = ""
+
+[[pppoe]]
+    addr = "ppp1.mk.kor.tih.ru:8728"
+    username = ""
+    password = ""
+
+[[pppoe]]
+    addr = "ppp2.mk.kor.tih.ru:8728"
+    username = ""
+    password = ""
+
+[billing]
+    get_users_query = """
+    select
+        concat_ws('#', u.login, a.id, atl.id) as name,
+        t.name as tname,
+        t.comments as tcomments,
+        group_concat(inet_ntoa(ip & 0xFFFFFFFF)) as ips,
+        a.int_status as status
+    from
+        users as u
+            join users_accounts as uacc on uacc.uid = u.id
+            join accounts as a on a.id = uacc.account_id
+            join account_tariff_link as atl on atl.account_id = a.id
+            join tariffs as t on t.id = atl.tariff_id
+            join service_links as sl on atl.id = sl.tariff_link_id
+            join iptraffic_service_links as ipsl on ipsl.id = sl.id
+            join ip_groups as ipgr on ipgr.ip_group_id = ipsl.ip_group_id
+
+    where u.is_deleted < 1
+      and uacc.is_deleted < 1
+      and atl.is_deleted < 1
+      and sl.is_deleted < 1
+      and ipsl.is_deleted < 1
+      and ipgr.is_deleted < 1
+    group by u.login, a.id, atl.id, t.id
+    order by name;
+    """
+#    bw_multiplier = 1.05
+    bw_multiplier = 1.05
+
+[billing.db]
+    host = ""
+    username = ""
+    password = ""
+    dbname_tih = "UTM5"
+    dbname_kor = "UTM8"
+
+[mq]
+    url   = "amqp://userside.ttnet.ru:5672/"
+    queue = "mk"
