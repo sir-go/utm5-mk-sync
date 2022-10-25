@@ -5,10 +5,10 @@ type PPPoE struct {
 }
 
 func NewPPPoE() *PPPoE {
-	log.Debug("init PPPoE...")
+	LOG.Debug("init PPPoE...")
 	p := &PPPoE{}
-	p.devices = make([]*MkDevice, len(cfg.PPPoE))
-	for idx, devConf := range cfg.PPPoE {
+	p.devices = make([]*MkDevice, len(CFG.PPPoE))
+	for idx, devConf := range CFG.PPPoE {
 		p.devices[idx] = &MkDevice{Cfg: devConf}
 		eh(p.devices[idx].Connect())
 	}
@@ -27,5 +27,5 @@ func (p *PPPoE) Kill(ip string) {
 			return
 		}
 	}
-	log.Warningf("ip %s not found on PPPoE terminators", ip)
+	LOG.Warningf("ip %s not found on PPPoE terminators", ip)
 }

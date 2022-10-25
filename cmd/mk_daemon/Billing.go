@@ -5,10 +5,11 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"fmt"
-	_ "github.com/go-sql-driver/mysql"
 	"regexp"
 	"strconv"
 	"strings"
+
+	_ "github.com/go-sql-driver/mysql"
 )
 
 var reSpeedPrice = regexp.MustCompile(`\[(\d+)/`)
@@ -18,7 +19,7 @@ func round(x, unit float64) float64 {
 }
 
 func applyBwMultiplier(v int) int {
-	return int(round(float64(v)*cfg.Billing.BwMultiplier, 1))
+	return int(round(float64(v)*CFG.Billing.BwMultiplier, 1))
 }
 
 func parseIsPatriot(tname string) bool {
@@ -92,18 +93,18 @@ type Billing struct {
 }
 
 func NewBilling() *Billing {
-	log.Debug("init Billing ...")
+	LOG.Debug("init Billing ...")
 	b := &Billing{
 		dbTih: DbConnect(
-			cfg.Billing.DB.Host,
-			cfg.Billing.DB.Username,
-			cfg.Billing.DB.Password,
-			cfg.Billing.DB.DbNameTih),
+			CFG.Billing.DB.Host,
+			CFG.Billing.DB.Username,
+			CFG.Billing.DB.Password,
+			CFG.Billing.DB.DbNameTih),
 		dbKor: DbConnect(
-			cfg.Billing.DB.Host,
-			cfg.Billing.DB.Username,
-			cfg.Billing.DB.Password,
-			cfg.Billing.DB.DbNameKor),
+			CFG.Billing.DB.Host,
+			CFG.Billing.DB.Username,
+			CFG.Billing.DB.Password,
+			CFG.Billing.DB.DbNameKor),
 		cache: make([]DbRec, 0),
 	}
 	return b
@@ -117,27 +118,27 @@ func (b *Billing) Disconnect() {
 func (b *Billing) dbOk() {
 	var err error
 	if err = b.dbTih.Ping(); err != nil {
-		log.Warning("Tih DB ping failed, reconnect", err)
+		LOG.Warning("Tih DB ping failed, reconnect", err)
 		if err = b.dbTih.Close(); err != nil {
-			log.Warning("Tih DB close connection", err)
+			LOG.Warning("Tih DB close connection", err)
 		}
 
-		b.dbTih = DbConnect(cfg.Billing.DB.Host, cfg.Billing.DB.Username,
-			cfg.Billing.DB.Password, cfg.Billing.DB.DbNameTih)
+		b.dbTih = DbConnect(CFG.Billing.DB.Host, CFG.Billing.DB.Username,
+			CFG.Billing.DB.Password, CFG.Billing.DB.DbNameTih)
 	}
 
 	if err = b.dbKor.Ping(); err != nil {
-		log.Warning("Kor DB ping failed, reconnect", err)
+		LOG.Warning("Kor DB ping failed, reconnect", err)
 		if err = b.dbKor.Close(); err != nil {
-			log.Warning("Kor DB close connection", err)
+			LOG.Warning("Kor DB close connection", err)
 		}
 
-		b.dbKor = DbConnect(cfg.Billing.DB.Host, cfg.Billing.DB.Username,
-			cfg.Billing.DB.Password, cfg.Billing.DB.DbNameKor)
+		b.dbKor = DbConnect(CFG.Billing.DB.Host, CFG.Billing.DB.Username,
+			CFG.Billing.DB.Password, CFG.Billing.DB.DbNameKor)
 	}
 }
 
-func rowToDbRecord(dbrec *dbRow, cityCode string) (dbr DbRec) {
+func rowToDbRecord(dbRec *dbRow, cityCode string) (dbr DbRec) {
 	var (
 		ips     []string
 		speed   int
@@ -145,27 +146,27 @@ func rowToDbRecord(dbrec *dbRow, cityCode string) (dbr DbRec) {
 		err     error
 	)
 
-	speed, err = parseSpeed(dbrec.Tcomment)
+	speed, err = parseSpeed(dbRec.Tcomment)
 	if err != nil {
-		log.Warningf("can't parse speed from '%s'", dbrec.Tcomment)
+		LOG.Warningf("can't parse speed from '%s'", dbRec.Tcomment)
 		speed = 0
 	} else {
 		speed = applyBwMultiplier(speed)
 	}
 
-	if parseIsPatriot(dbrec.Tname) {
+	if parseIsPatriot(dbRec.Tname) {
 		comment = "PG"
 	}
 
-	ips = parseIps(dbrec.Ips)
+	ips = parseIps(dbRec.Ips)
 
 	dbr = DbRec{
-		Name:     dbrec.Name,
+		Name:     dbRec.Name,
 		Speed:    speed,
 		Comment:  comment,
 		Ips:      ips,
 		CityCode: cityCode,
-		Enabled:  dbrec.Enabled,
+		Enabled:  dbRec.Enabled,
 	}
 	dbr.calcSum()
 
@@ -173,11 +174,11 @@ func rowToDbRecord(dbrec *dbRow, cityCode string) (dbr DbRec) {
 }
 
 func (b *Billing) UpdateCache() {
-	log.Debug("get users from Billing...")
+	LOG.Debug("get users from Billing...")
 
 	b.dbOk()
 	b.cache = make([]DbRec, 0)
-	q := cfg.Billing.GetUsersQuery
+	q := CFG.Billing.GetUsersQuery
 
 	rows, err := b.dbTih.Query(q)
 	eh(err)
@@ -185,31 +186,32 @@ func (b *Billing) UpdateCache() {
 	var uinfo dbRow
 	for rows.Next() {
 		eh(rows.Scan(&uinfo.Name, &uinfo.Tname, &uinfo.Tcomment, &uinfo.Ips, &uinfo.Enabled))
-		if IsInSlice(uinfo.Name, cfg.Shape.IgnoreIds) {
+		if IsInSlice(uinfo.Name, CFG.Shape.IgnoreIds) {
 			uinfo.Tcomment = ""
 		}
 		b.cache = append(b.cache, rowToDbRecord(&uinfo, "tih"))
 	}
 
 	g := len(b.cache)
-	log.Debugf("got %d records from Tih", g)
+	LOG.Debugf("got %d records from Tih", g)
 
 	rows, err = b.dbKor.Query(q)
 	eh(err)
 
 	for rows.Next() {
 		eh(rows.Scan(&uinfo.Name, &uinfo.Tname, &uinfo.Tcomment, &uinfo.Ips, &uinfo.Enabled))
-		if IsInSlice(uinfo.Name, cfg.Shape.IgnoreIds) {
+		if IsInSlice(uinfo.Name, CFG.Shape.IgnoreIds) {
 			uinfo.Tcomment = ""
 		}
 		b.cache = append(b.cache, rowToDbRecord(&uinfo, "kor"))
 	}
-	log.Debugf("got %d records from Kor", len(b.cache)-g)
+	LOG.Debugf("got %d records from Kor", len(b.cache)-g)
 }
 
 func (b *Billing) GetTariffInfo(tlId int) (speed int, comment string, err error) {
 	b.dbOk()
 	var stmt *sql.Stmt
+	//goland:noinspection SqlNoDataSourceInspection,SqlResolve
 	stmt, err = b.dbTih.Prepare(`
 	select t.name, t.comments
 	from account_tariff_link as atl
@@ -229,7 +231,7 @@ func (b *Billing) GetTariffInfo(tlId int) (speed int, comment string, err error)
 
 	speed, err = parseSpeed(tcomment)
 	if err != nil {
-		log.Warningf("can't parse speed from '%s', set speed = 0", tcomment)
+		LOG.Warningf("can't parse speed from '%s', set speed = 0", tcomment)
 		speed = 0
 	} else {
 		speed = applyBwMultiplier(speed)

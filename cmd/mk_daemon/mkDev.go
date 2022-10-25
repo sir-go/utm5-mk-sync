@@ -3,11 +3,12 @@ package main
 import (
 	"errors"
 	"fmt"
-	"gopkg.in/routeros.v2"
 	"regexp"
 	"sort"
 	"strconv"
 	"strings"
+
+	"gopkg.in/routeros.v2"
 )
 
 var (
@@ -22,13 +23,13 @@ type MkDevice struct {
 }
 
 func (mkd *MkDevice) Connect() (err error) {
-	log.Debugf("connect to Mk %s", mkd.Cfg.Addr)
+	LOG.Debugf("connect to Mk %s", mkd.Cfg.Addr)
 	mkd.Conn, err = routeros.Dial(mkd.Cfg.Addr, mkd.Cfg.Username, mkd.Cfg.Password)
 	return
 }
 
 func (mkd *MkDevice) Disconnect() {
-	log.Debugf("disconnect from firewall Mk %s", mkd.Cfg.Addr)
+	LOG.Debugf("disconnect from firewall Mk %s", mkd.Cfg.Addr)
 	mkd.Conn.Close()
 }
 
@@ -54,7 +55,7 @@ func parseSpeedFromQueueLimit(queueValue string) (int, error) {
 func (mkd *MkDevice) reTry(fn func() (*routeros.Reply, error)) (res *routeros.Reply, err error) {
 	res, err = fn()
 	if err != nil && strings.Contains(err.Error(), "broken pipe") {
-		log.Debug(err)
+		LOG.Debug(err)
 		if err = mkd.Reconnect(); err != nil {
 			return
 		}
@@ -64,7 +65,7 @@ func (mkd *MkDevice) reTry(fn func() (*routeros.Reply, error)) (res *routeros.Re
 }
 
 func (mkd *MkDevice) killPPPoE(ip string) error {
-	log.Debugf("try to kill pppoe with ip '%s' on MK %s", ip, mkd.Cfg.Addr)
+	LOG.Debugf("try to kill pppoe with ip '%s' on MK %s", ip, mkd.Cfg.Addr)
 
 	reply, err := mkd.reTry(func() (reply *routeros.Reply, err error) {
 		return mkd.Conn.Run("/ppp/active/print", "?address="+ip,
@@ -113,7 +114,7 @@ func (mkd *MkDevice) AclGetAll(listName string, result *[]*ARec) error {
 }
 
 func (mkd *MkDevice) AclAdd(alrec *ARec) error {
-	log.Debugf("add %+v", alrec)
+	LOG.Debugf("add %+v", alrec)
 
 	reply, err := mkd.reTry(func() (reply *routeros.Reply, err error) {
 		return mkd.Conn.Run("/ip/firewall/address-list/add",
@@ -124,10 +125,10 @@ func (mkd *MkDevice) AclAdd(alrec *ARec) error {
 
 	if err != nil {
 		if strings.Contains(err.Error(), "already have such entry") {
-			log.Warningf("err: %s, %+v", err.Error(), alrec)
+			LOG.Warningf("err: %s, %+v", err.Error(), alrec)
 			return nil
 		} else {
-			log.Errorf("err: %s, %+v", err.Error(), alrec)
+			LOG.Errorf("err: %s, %+v", err.Error(), alrec)
 			return err
 		}
 	}
@@ -139,7 +140,7 @@ func (mkd *MkDevice) AclAdd(alrec *ARec) error {
 }
 
 func (mkd *MkDevice) AclRemove(alrec *ARec) error {
-	log.Debugf("del %+v", alrec)
+	LOG.Debugf("del %+v", alrec)
 
 	_, err := mkd.reTry(func() (reply *routeros.Reply, err error) {
 		return mkd.Conn.Run("/ip/firewall/address-list/remove", "=.id="+alrec.Id)
@@ -147,9 +148,9 @@ func (mkd *MkDevice) AclRemove(alrec *ARec) error {
 
 	if err != nil {
 		if strings.Contains(err.Error(), "no such item") {
-			log.Warningf("no address list entries found with id '%s'\n", alrec.Id)
+			LOG.Warningf("no address list entries found with id '%s'\n", alrec.Id)
 		} else {
-			log.Errorf("addrlist remove entry with id '%s' ERROR: %s\n", alrec.Id, err.Error())
+			LOG.Errorf("addrlist remove entry with id '%s' ERROR: %s\n", alrec.Id, err.Error())
 			return err
 		}
 	}
@@ -164,7 +165,7 @@ func (mkd *MkDevice) AclChange(alrec *ARec, fieldName string, newValue string) e
 	})
 
 	if err != nil {
-		log.Error(err)
+		LOG.Error(err)
 		return err
 	}
 	return nil
@@ -181,7 +182,7 @@ func (mkd *MkDevice) QueueGetAll() (res []*QRec) {
 	for _, resPair := range reply.Re {
 		speed, err := parseSpeedFromQueueLimit(resPair.Map["max-limit"])
 		if err != nil {
-			log.Errorf("can't parse speed from queue '%s' max-limit '%s'",
+			LOG.Errorf("can't parse speed from queue '%s' max-limit '%s'",
 				resPair.Map["name"], resPair.Map["max-limit"])
 			continue
 		}
@@ -204,7 +205,7 @@ func (mkd *MkDevice) QueueGetAll() (res []*QRec) {
 func (mkd *MkDevice) QueueAdd(qrec *QRec) error {
 	maxLimit := fmt.Sprintf("%dM/%dM", qrec.Speed, qrec.Speed)
 	ips := strings.Join(qrec.Target, ",")
-	log.Debugf("+q [dev: %s] %s [%s] %d Mbps %s",
+	LOG.Debugf("+q [dev: %s] %s [%s] %d Mbps %s",
 		qrec.Dev.Cfg.Addr, qrec.Name, ips, qrec.Speed, qrec.Comment)
 
 	_, err := mkd.reTry(func() (reply *routeros.Reply, err error) {
@@ -223,9 +224,9 @@ func (mkd *MkDevice) QueueAdd(qrec *QRec) error {
 	})
 	if err != nil {
 		if strings.Contains(err.Error(), "already have such name") {
-			log.Warningf("queue (name = %s) already exists", qrec.Name)
+			LOG.Warningf("queue (name = %s) already exists", qrec.Name)
 		} else {
-			log.Errorf("queue (name = %s) add ERROR: %s", qrec.Name, err.Error())
+			LOG.Errorf("queue (name = %s) add ERROR: %s", qrec.Name, err.Error())
 			return err
 		}
 	}
@@ -234,7 +235,7 @@ func (mkd *MkDevice) QueueAdd(qrec *QRec) error {
 }
 
 func (mkd *MkDevice) QueueRemove(qrec *QRec) error {
-	log.Debugf("-q [dev: %s] %s [%s] %d Mbps %s",
+	LOG.Debugf("-q [dev: %s] %s [%s] %d Mbps %s",
 		qrec.Dev.Cfg.Addr, qrec.Name, strings.Join(qrec.Target, ","), qrec.Speed, qrec.Comment)
 
 	_, err := mkd.reTry(func() (reply *routeros.Reply, err error) {
@@ -243,9 +244,9 @@ func (mkd *MkDevice) QueueRemove(qrec *QRec) error {
 
 	if err != nil {
 		if strings.Contains(err.Error(), "no such item") {
-			log.Warningf("queue (name = %s) not found\n", qrec.Name)
+			LOG.Warningf("queue (name = %s) not found\n", qrec.Name)
 		} else {
-			log.Errorf("queue (name = %s) remove ERROR: %s\n", qrec.Name, err.Error())
+			LOG.Errorf("queue (name = %s) remove ERROR: %s\n", qrec.Name, err.Error())
 			return err
 		}
 	}
@@ -254,7 +255,7 @@ func (mkd *MkDevice) QueueRemove(qrec *QRec) error {
 }
 
 func (mkd *MkDevice) QueueSetTarget(rec *QRec, target string) error {
-	log.Debugf("set target queue %s [%s] -> %s", rec.Name, strings.Join(rec.Target, ","), target)
+	LOG.Debugf("set target queue %s [%s] -> %s", rec.Name, strings.Join(rec.Target, ","), target)
 
 	_, err := mkd.reTry(func() (reply *routeros.Reply, err error) {
 		return mkd.Conn.Run("/queue/simple/set",
@@ -264,9 +265,9 @@ func (mkd *MkDevice) QueueSetTarget(rec *QRec, target string) error {
 
 	if err != nil {
 		if strings.Contains(err.Error(), "no such item") {
-			log.Warningf("queue (name = %s) not found\n", rec.Name)
+			LOG.Warningf("queue (name = %s) not found\n", rec.Name)
 		} else {
-			log.Errorf("queue (name = %s) set target ERROR: %s\n", rec.Name, err.Error())
+			LOG.Errorf("queue (name = %s) set target ERROR: %s\n", rec.Name, err.Error())
 			return err
 		}
 	}

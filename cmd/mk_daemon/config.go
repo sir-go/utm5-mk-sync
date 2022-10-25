@@ -44,9 +44,9 @@ type (
 	}
 )
 
-func LoadConfig(confpath string) *Config {
+func LoadConfig(confPath string) *Config {
 	conf := new(Config)
-	file, err := os.Open(confpath)
+	file, err := os.Open(confPath)
 	defer func() {
 		if file == nil {
 			return
@@ -55,7 +55,7 @@ func LoadConfig(confpath string) *Config {
 	}()
 	eh(err)
 
-	_, err = toml.DecodeFile(confpath, &conf)
+	_, err = toml.DecodeFile(confPath, &conf)
 	eh(err)
 
 	return conf

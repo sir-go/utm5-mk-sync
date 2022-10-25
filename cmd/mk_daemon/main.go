@@ -10,8 +10,8 @@ import (
 const logFormat = `%{time: Jan/02 15:04:05} %{level:.1s} %{shortfile} > %{message}`
 
 var (
-	cfg        *Config
-	log        *logging.Logger
+	CFG        *Config
+	LOG        *logging.Logger
 	shaper     *Shaper
 	fw         *Firewall
 	ppp        *PPPoE
@@ -31,14 +31,14 @@ type (
 
 func eh(err error, msg ...string) {
 	if err != nil {
-		log.Error(err, msg)
+		LOG.Error(err, msg)
 		panic(err)
 	}
 }
 
 func ehSkip(err error, msg ...string) {
 	if err != nil {
-		log.Error(err, msg)
+		LOG.Error(err, msg)
 	}
 }
 
@@ -50,7 +50,7 @@ func RunAtStart() {
 }
 
 func main() {
-	mqConn, err := rabbitmq.Dial(cfg.MQ.Url)
+	mqConn, err := rabbitmq.Dial(CFG.MQ.Url)
 	eh(err, "Failed to connect to RabbitMQ")
 	defer func() { ehSkip(mqConn.Close()) }()
 
@@ -74,7 +74,7 @@ func main() {
 
 	eh(ch.Qos(1, 0, false), "Failed to set QoS")
 	mqMessages, err = ch.Consume(
-		cfg.MQ.Queue,
+		CFG.MQ.Queue,
 		"mk-daemon",
 		false,
 		true,
@@ -85,9 +85,9 @@ func main() {
 	eh(err, "Failed to register a consumer")
 
 	RunAtStart()
-	log.Info(" [*] Waiting for tasks.")
+	LOG.Info(" [*] Waiting for tasks.")
 
 	forever := make(chan bool)
-	go MQmessagesHandler()
+	go MqMessagesHandler()
 	<-forever
 }

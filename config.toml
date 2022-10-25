@@ -1,44 +1,42 @@
-[shape]
-ignore_ids = []
-rebalance_threshold = 500.0
+[shape]                                     # shapers configuration
+    ignore_ids = []                         # ignore (don't shape) certain IP addresses (VIP)
+    rebalance_threshold = 500.0             # bandwidth difference between routers, when do rebalance
 
-[[shape.devices]]
-    addr = "shaper.mk.tih.ru:8728"
-    username = ""
-    password = ""
-    coef = 0.3
+    [[shape.devices]]                       # array of the shaping devices
+        addr = "shaper-device0:8728"        # device address
+        username = ""                       # routerOS username
+        password = ""                       # routerOS password
+        coef = 0.3                          # weight of the device in balancing calculation
 
-[[shape.devices]]
-    addr = "router.mk.tih.ru:8728"
-    username = ""
-    password = ""
-    coef = 1.0
+    [[shape.devices]]                       # ...
+        addr = "shaper-device1:8728"
+        username = ""
+        password = ""
+        coef = 1.0
 
-[firewall]
-    addr = "router.mk.tih.ru:8728"
-    username = ""
-    password = ""
-
-[acl]
-    list_allow = "Allow"
-    list_deny = "Deny"
-
-[[pppoe]]
-    addr = "ppp0.mk.kor.tih.ru:8728"
+[firewall]                                  # firewall device credentials
+    addr = "firewall-device:8728"
     username = ""
     password = ""
 
-[[pppoe]]
-    addr = "ppp1.mk.kor.tih.ru:8728"
+[acl]                                       # ACL's for subscribers
+    list_allow = "Allow"                    # a list with enabled services
+    list_deny = "Deny"                      # a list with disabled services
+
+[[pppoe]]                                   # array of PPPoE devices
+                                            # (for terminating PPPoE sessions by disabling services)
+    addr = "ppp0.mk:8728"                   # device address
+    username = ""                           # routerOS username
+    password = ""                           # routerOS password
+
+[[pppoe]]                                   # ...
+    addr = "ppp1.mk:8728"
     username = ""
     password = ""
 
-[[pppoe]]
-    addr = "ppp2.mk.kor.tih.ru:8728"
-    username = ""
-    password = ""
+[billing]                                   # UTM5 billing settings
 
-[billing]
+    # text of getting subscribers profiles DB query
     get_users_query = """
     select
         concat_ws('#', u.login, a.id, atl.id) as name,
@@ -66,15 +64,15 @@ rebalance_threshold = 500.0
     order by name;
     """
 #    bw_multiplier = 1.05
-    bw_multiplier = 1.05
+    bw_multiplier = 1.05                    # bandwidth multiplier for calculating the simple queue capacity
 
-[billing.db]
-    host = ""
-    username = ""
-    password = ""
-    dbname_tih = "UTM5"
-    dbname_kor = "UTM8"
+    [billing.db]                            # UTM5 MySQL DB credentials
+        host = ""
+        username = ""
+        password = ""
+        dbname_tih = "UTM5"                 # we have two different billing systems by cities
+        dbname_kor = "UTM8"
 
-[mq]
-    url   = "amqp://userside.ttnet.ru:5672/"
-    queue = "mk"
+[mq]                                        # RabbitMQ settings
+    url   = "amqp://rabbitmq-server:5672/"  # rMQ server
+    queue = "mk"                            # queue name

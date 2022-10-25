@@ -34,10 +34,10 @@ type Shaper struct {
 }
 
 func NewShaper() *Shaper {
-	log.Debug("init Shaper...")
+	LOG.Debug("init Shaper...")
 	s := &Shaper{}
-	s.devices = make([]*MkDevice, len(cfg.Shape.Devices))
-	for idx, devConf := range cfg.Shape.Devices {
+	s.devices = make([]*MkDevice, len(CFG.Shape.Devices))
+	for idx, devConf := range CFG.Shape.Devices {
 		s.devices[idx] = &MkDevice{devConf, nil, 0}
 		eh(s.devices[idx].Connect())
 	}
@@ -66,13 +66,13 @@ func (s *Shaper) GetMinMaxUsageDevices() (minUDev, maxUDev *MkDevice) {
 }
 
 func (s *Shaper) UpdateCache() {
-	log.Debug("Update shaper cache...")
+	LOG.Debug("Update shaper cache...")
 	s.cache = make([]*QRec, 0)
 	for _, mk := range s.devices {
-		log.Debugf("get Queues Mk %s ...", mk.Cfg.Addr)
+		LOG.Debugf("get Queues Mk %s ...", mk.Cfg.Addr)
 
 		queues := mk.QueueGetAll()
-		log.Debugf("got %d records", len(queues))
+		LOG.Debugf("got %d records", len(queues))
 
 		s.cache = append(s.cache, queues...)
 	}
@@ -135,7 +135,7 @@ func (s *Shaper) Del(rec *QRec) (err error) {
 	for idx, c := range s.cache {
 		if rec.Hash == c.Hash {
 			if err = c.Dev.QueueRemove(c); err != nil {
-				log.Errorf("couldn't remove queue with name %s", rec.Name)
+				LOG.Errorf("couldn't remove queue with name %s", rec.Name)
 				return
 			}
 			if len(s.cache)-1 <= idx {
@@ -150,11 +150,11 @@ func (s *Shaper) Del(rec *QRec) (err error) {
 
 func (s *Shaper) Move(rec *QRec, dev *MkDevice) (err error) {
 	if err = dev.QueueAdd(rec); err != nil {
-		log.Errorf("couldn't add queue with name %s to dev %s", rec.Name, dev.Cfg.Addr)
+		LOG.Errorf("couldn't add queue with name %s to dev %s", rec.Name, dev.Cfg.Addr)
 		return
 	}
 	if err = rec.Dev.QueueRemove(rec); err != nil {
-		log.Errorf("couldn't remove queue with name %s from dev %s", rec.Name, dev.Cfg.Addr)
+		LOG.Errorf("couldn't remove queue with name %s from dev %s", rec.Name, dev.Cfg.Addr)
 		return
 	}
 	rec.Dev = dev
@@ -182,7 +182,7 @@ func (s *Shaper) Sync(dbRec *DbRec) error {
 		if qRec.Hash == dbRec.Hash {
 			return nil
 		}
-		log.Noticef("%s: eq Names but !eq Hashes -> remove hRec", dbRec.Name)
+		LOG.Noticef("%s: eq Names but !eq Hashes -> remove hRec", dbRec.Name)
 		if err := s.Del(qRec); err != nil {
 			return err
 		}
@@ -204,11 +204,11 @@ func (s *Shaper) Sync(dbRec *DbRec) error {
 }
 
 func (s *Shaper) Clean() error {
-	log.Debug("cleanup Shaper ...")
+	LOG.Debug("cleanup Shaper ...")
 	toRemove := make([]*QRec, 0)
 	for _, hRec := range s.cache {
 		if dbRec := billing.FindByHash(hRec.Hash); dbRec == nil || dbRec.CityCode == "kor" {
-			log.Noticef("%s: not found in Db -> remove", hRec.Name)
+			LOG.Noticef("%s: not found in Db -> remove", hRec.Name)
 			toRemove = append(toRemove, hRec)
 		}
 	}

@@ -3,23 +3,24 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+
 	"github.com/streadway/amqp"
 )
 
 func Reject(err error, d *amqp.Delivery) {
-	log.Error(err)
+	LOG.Error(err)
 	if err = d.Reject(false); err != nil {
-		log.Fatal(err)
+		LOG.Fatal(err)
 	}
 }
 
 func Ack(d *amqp.Delivery) {
 	if err := d.Ack(false); err != nil {
-		log.Error(err)
+		LOG.Error(err)
 	}
 }
 
-func MQmessagesHandler() {
+func MqMessagesHandler() {
 	var err error
 	for d := range mqMessages {
 		t := new(Task)
@@ -36,34 +37,34 @@ func MQmessagesHandler() {
 }
 
 func HandleTask(t *Task) error {
-	log.Debug(t)
+	LOG.Debug(t)
 	switch t.Cmd {
 
 	case "rebalance_q":
 		shaper.UpdateCache()
-		log.Info("rebalance queues ...")
+		LOG.Info("rebalance queues ...")
 		minDev, maxDev := shaper.GetMinMaxUsageDevices()
 		diff := maxDev.QueuesUsage - minDev.QueuesUsage
-		if diff < cfg.Shape.RebalanceThreshold {
-			log.Infof("diff b/w max and min < %.2f, nothing to do", cfg.Shape.RebalanceThreshold)
+		if diff < CFG.Shape.RebalanceThreshold {
+			LOG.Infof("diff b/w max and min < %.2f, nothing to do", CFG.Shape.RebalanceThreshold)
 			return nil
 		}
-		log.Debugf("diff b/w max and min == %.2f ...", diff)
+		LOG.Debugf("diff b/w max and min == %.2f ...", diff)
 		for diff > 0 {
 			qRec := shaper.FindFirstByDev(maxDev)
 			qRecInfo := *qRec
-			log.Debugf("move queue %s -> %s ...", maxDev.Cfg.Addr, minDev.Cfg.Addr)
+			LOG.Debugf("move queue %s -> %s ...", maxDev.Cfg.Addr, minDev.Cfg.Addr)
 			ehSkip(shaper.Del(qRec))
 			ehSkip(shaper.Add(&qRecInfo))
 			diff -= float32(qRecInfo.Speed)
-			log.Debugf("diff == %.2f now", diff)
+			LOG.Debugf("diff == %.2f now", diff)
 		}
 
 	case "sync_all":
 		shaper.UpdateCache()
 		fw.UpdateCache()
 		billing.UpdateCache()
-		log.Debug("sync with DB records ...")
+		LOG.Debug("sync with DB records ...")
 		for _, u := range billing.cache {
 			for _, ip := range u.Ips {
 				ehSkip(fw.Sync(&u, ip))
@@ -72,35 +73,35 @@ func HandleTask(t *Task) error {
 				ehSkip(shaper.Sync(&u))
 			}
 		}
-		log.Debug("sync is done.")
-		log.Debug("cleanup ...")
+		LOG.Debug("sync is done.")
+		LOG.Debug("cleanup ...")
 		eh(fw.Clean())
 		eh(shaper.Clean())
-		log.Debug("cleanup is done.")
+		LOG.Debug("cleanup is done.")
 		return HandleTask(&Task{Cmd: "rebalance_q"})
 
 	case "internet_on":
 		for _, rec := range fw.FindByCommentPartial(t.User) {
-			ehSkip(fw.Move(rec, cfg.Acl.ListAllow))
+			ehSkip(fw.Move(rec, CFG.Acl.ListAllow))
 		}
 
 	case "internet_off":
 		for _, rec := range fw.FindByCommentPartial(t.User) {
-			ehSkip(fw.Move(rec, cfg.Acl.ListDeny))
+			ehSkip(fw.Move(rec, CFG.Acl.ListDeny))
 		}
 
 	case "slink_add":
 		ips := parseIps(t.Ips)
 		if len(ips) == 0 {
-			log.Warningf("no ip found: %s", t.Ips)
+			LOG.Warningf("no ip found: %s", t.Ips)
 			return nil
 		}
 
-		if t.City != "kor" && !IsInSlice(t.User, cfg.Shape.IgnoreIds) {
+		if t.City != "kor" && !IsInSlice(t.User, CFG.Shape.IgnoreIds) {
 			speed, comment, err := billing.GetTariffInfo(t.TlId)
 			if err != nil {
 				if err.Error() == "sql: no rows in result set" {
-					log.Warningf("%s can't get tariff info for tlid: %d: %v", t.User, t.TlId, err)
+					LOG.Warningf("%s can't get tariff info for tlId: %d: %v", t.User, t.TlId, err)
 					return nil
 				}
 				return err
@@ -124,7 +125,7 @@ func HandleTask(t *Task) error {
 
 		for _, ip := range ips {
 			aRec := &ARec{
-				ListName: cfg.Acl.ListDeny,
+				ListName: CFG.Acl.ListDeny,
 				Address:  ip,
 				Comment:  t.User,
 				City:     t.City,
@@ -137,13 +138,13 @@ func HandleTask(t *Task) error {
 	case "slink_del":
 		aRecs := fw.FindByComment(t.User)
 		if t.City == "kor" {
-			for _, arec := range aRecs {
-				log.Noticef("kor -> kill PPPoE for ip '%s'", arec.Address)
-				ppp.Kill(arec.Address)
+			for _, ar := range aRecs {
+				LOG.Noticef("kor -> kill PPPoE for ip '%s'", ar.Address)
+				ppp.Kill(ar.Address)
 			}
 		}
-		for _, arec := range aRecs {
-			ehSkip(fw.Del(arec))
+		for _, ar := range aRecs {
+			ehSkip(fw.Del(ar))
 		}
 		if t.City != "kor" {
 			if qRec := shaper.FindByName(t.User); qRec != nil {
@@ -155,7 +156,7 @@ func HandleTask(t *Task) error {
 		ips := parseIps(t.Ips)
 
 		if len(ips) == 0 {
-			log.Warningf("no ip found: %s", t.Ips)
+			LOG.Warningf("no ip found: %s", t.Ips)
 			return nil
 		}
 
@@ -170,7 +171,7 @@ func HandleTask(t *Task) error {
 			actualListName = aRec.ListName
 			if !IsInSlice(aRec.Address, ips) {
 				if t.City == "kor" {
-					log.Noticef("kor -> kill PPPoE for ip '%s'", aRec.Address)
+					LOG.Noticef("kor -> kill PPPoE for ip '%s'", aRec.Address)
 					ppp.Kill(aRec.Address)
 				}
 				ehSkip(fw.Del(aRec))
@@ -178,7 +179,7 @@ func HandleTask(t *Task) error {
 		}
 
 		if len(actualIPs) == 0 || actualListName == "" {
-			log.Warningf("no addresses for '%s' found in hashes", t.User)
+			LOG.Warningf("no addresses for '%s' found in hashes", t.User)
 			return nil
 		}
 
@@ -196,7 +197,7 @@ func HandleTask(t *Task) error {
 			ehSkip(fw.Add(newAddress))
 		}
 
-		if t.City == "kor" || IsInSlice(t.User, cfg.Shape.IgnoreIds) {
+		if t.City == "kor" || IsInSlice(t.User, CFG.Shape.IgnoreIds) {
 			return nil
 		}
 
