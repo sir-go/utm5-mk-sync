@@ -67,10 +67,10 @@ func HandleTask(t *Task) error {
 		LOG.Debug("sync with DB records ...")
 		for _, u := range billing.cache {
 			for _, ip := range u.Ips {
-				ehSkip(fw.Sync(&u, ip))
+				ehSkip(fw.Sync(u, ip))
 			}
 			if u.CityCode != "kor" {
-				ehSkip(shaper.Sync(&u))
+				ehSkip(shaper.Sync(u))
 			}
 		}
 		LOG.Debug("sync is done.")

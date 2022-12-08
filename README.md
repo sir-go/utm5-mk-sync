@@ -1,7 +1,7 @@
-## A tool for synchronizing subscribers' statuses between UTM5 billing and Mikrotik routers (with auto-balancing the shaping load between routers)
+# A tool for synchronizing subscribers' statuses between UTM5 billing and Mikrotik routers (with auto-balancing the shaping load between routers)
+[![Go](https://github.com/sir-go/utm5-mk-sync/actions/workflows/go.yml/badge.svg)](https://github.com/sir-go/utm5-mk-sync/actions/workflows/go.yml)
 
-### How it works
-
+## How it works
 Runs as a daemon and listens to the commands from the RabbitMQ broker.
 
 The commands have a certain format convenient for use in the UTM5 billing.
@@ -24,14 +24,23 @@ Commands:
 - `sync_all`     - get all subscriber's statuses from the billing and apply changes to the routers
 - `rebalance_q`  - force run the network balancing between routers
 
-___
-### Configuration
-
+## Configuration
 All necessary configurations are provided in the configuration file `config.toml` 
 (can be set in the `-c` running option).
 
-___
-### Build & run
+## Docker
+```bash
+docker build -t mk-daemon .
+docker run --rm -it -v ${PWD}/config.toml:/config.toml:ro mk-daemon:latest
+```
+
+## Tests
+```bash
+go test -v ./...
+gosec ./...
+```
+
+## Build & run
 ```bash
 go mod download
 go build -o mk-daemon ./cmd/mk_daemon

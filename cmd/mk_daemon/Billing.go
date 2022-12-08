@@ -1,37 +1,17 @@
 package main
 
 import (
-	"crypto/md5"
 	"database/sql"
 	"encoding/hex"
 	"fmt"
-	"regexp"
+	"hash/fnv"
 	"strconv"
-	"strings"
 
 	_ "github.com/go-sql-driver/mysql"
 )
 
-var reSpeedPrice = regexp.MustCompile(`\[(\d+)/`)
-
-func round(x, unit float64) float64 {
-	return float64(int64(x/unit+0.5)) * unit
-}
-
 func applyBwMultiplier(v int) int {
-	return int(round(float64(v)*CFG.Billing.BwMultiplier, 1))
-}
-
-func parseIsPatriot(tname string) bool {
-	return strings.Contains(strings.ToLower(tname), "патриот города - ")
-}
-
-func parseSpeed(tcomment string) (int, error) {
-	m := reSpeedPrice.FindStringSubmatch(tcomment)
-	if len(m) > 1 {
-		return strconv.Atoi(m[1])
-	}
-	return 0, nil
+	return int(float64(v) * CFG.Billing.BwMultiplier)
 }
 
 func DbConnect(hostname string, username string, password string, dbname string) *sql.DB {
@@ -76,24 +56,26 @@ type (
 )
 
 func (dbr *DbRec) calcSum() {
-	md5c := md5.New()
-	md5c.Write([]byte(dbr.Name))
-	md5c.Write([]byte(strconv.Itoa(dbr.Speed)))
-	md5c.Write([]byte(dbr.Comment))
+	h := fnv.New128()
+	h.Write([]byte(dbr.Name))
+	h.Write([]byte(strconv.Itoa(dbr.Speed)))
+	h.Write([]byte(dbr.Comment))
 	for _, ip := range dbr.Ips {
-		md5c.Write([]byte(ip))
+		h.Write([]byte(ip))
 	}
-	dbr.Hash = hex.EncodeToString(md5c.Sum(nil))
+	dbr.Hash = hex.EncodeToString(h.Sum(nil))
 }
 
 type Billing struct {
 	dbTih *sql.DB
 	dbKor *sql.DB
-	cache []DbRec
+	cache []*DbRec
 }
 
 func NewBilling() *Billing {
 	LOG.Debug("init Billing ...")
+
+	// todo: this is ugly
 	b := &Billing{
 		dbTih: DbConnect(
 			CFG.Billing.DB.Host,
@@ -105,12 +87,13 @@ func NewBilling() *Billing {
 			CFG.Billing.DB.Username,
 			CFG.Billing.DB.Password,
 			CFG.Billing.DB.DbNameKor),
-		cache: make([]DbRec, 0),
+		cache: make([]*DbRec, 0),
 	}
 	return b
 }
 
 func (b *Billing) Disconnect() {
+	// todo: mhe 🤮
 	ehSkip(b.dbTih.Close())
 	ehSkip(b.dbKor.Close())
 }
@@ -138,21 +121,11 @@ func (b *Billing) dbOk() {
 	}
 }
 
-func rowToDbRecord(dbRec *dbRow, cityCode string) (dbr DbRec) {
+func rowToDbRecord(dbRec *dbRow, cityCode string) (dbr *DbRec) {
 	var (
 		ips     []string
-		speed   int
 		comment string
-		err     error
 	)
-
-	speed, err = parseSpeed(dbRec.Tcomment)
-	if err != nil {
-		LOG.Warningf("can't parse speed from '%s'", dbRec.Tcomment)
-		speed = 0
-	} else {
-		speed = applyBwMultiplier(speed)
-	}
 
 	if parseIsPatriot(dbRec.Tname) {
 		comment = "PG"
@@ -160,9 +133,9 @@ func rowToDbRecord(dbRec *dbRow, cityCode string) (dbr DbRec) {
 
 	ips = parseIps(dbRec.Ips)
 
-	dbr = DbRec{
+	dbr = &DbRec{
 		Name:     dbRec.Name,
-		Speed:    speed,
+		Speed:    applyBwMultiplier(parseSpeed(dbRec.Tcomment)),
 		Comment:  comment,
 		Ips:      ips,
 		CityCode: cityCode,
@@ -177,7 +150,7 @@ func (b *Billing) UpdateCache() {
 	LOG.Debug("get users from Billing...")
 
 	b.dbOk()
-	b.cache = make([]DbRec, 0)
+	b.cache = make([]*DbRec, 0)
 	q := CFG.Billing.GetUsersQuery
 
 	rows, err := b.dbTih.Query(q)
@@ -229,13 +202,7 @@ func (b *Billing) GetTariffInfo(tlId int) (speed int, comment string, err error)
 		return 0, "", err
 	}
 
-	speed, err = parseSpeed(tcomment)
-	if err != nil {
-		LOG.Warningf("can't parse speed from '%s', set speed = 0", tcomment)
-		speed = 0
-	} else {
-		speed = applyBwMultiplier(speed)
-	}
+	speed = applyBwMultiplier(parseSpeed(tcomment))
 
 	if parseIsPatriot(tname) {
 		comment = "PG"
@@ -248,7 +215,7 @@ func (b *Billing) GetTariffInfo(tlId int) (speed int, comment string, err error)
 func (b *Billing) FindByName(name string) *DbRec {
 	for _, r := range b.cache {
 		if r.Name == name {
-			return &r
+			return r
 		}
 	}
 	return nil
@@ -257,7 +224,7 @@ func (b *Billing) FindByName(name string) *DbRec {
 func (b *Billing) FindByHash(h string) *DbRec {
 	for _, r := range b.cache {
 		if r.Hash == h {
-			return &r
+			return r
 		}
 	}
 	return nil
@@ -266,7 +233,7 @@ func (b *Billing) FindByHash(h string) *DbRec {
 func (b *Billing) FindByIP(ip string) *DbRec {
 	for _, r := range b.cache {
 		if IsInSlice(ip, r.Ips) {
-			return &r
+			return r
 		}
 	}
 	return nil

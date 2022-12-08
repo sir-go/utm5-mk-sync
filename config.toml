@@ -63,7 +63,6 @@
     group by u.login, a.id, atl.id, t.id
     order by name;
     """
-#    bw_multiplier = 1.05
     bw_multiplier = 1.05                    # bandwidth multiplier for calculating the simple queue capacity
 
     [billing.db]                            # UTM5 MySQL DB credentials
