@@ -29,19 +29,6 @@ type (
 	}
 )
 
-func eh(err error, msg ...string) {
-	if err != nil {
-		LOG.Error(err, msg)
-		panic(err)
-	}
-}
-
-func ehSkip(err error, msg ...string) {
-	if err != nil {
-		LOG.Error(err, msg)
-	}
-}
-
 func RunAtStart() {
 	//shaper.UpdateCache()
 	//fw.UpdateCache()
@@ -50,6 +37,8 @@ func RunAtStart() {
 }
 
 func main() {
+	initReadConf()
+
 	mqConn, err := rabbitmq.Dial(CFG.MQ.Url)
 	eh(err, "Failed to connect to RabbitMQ")
 	defer func() { ehSkip(mqConn.Close()) }()

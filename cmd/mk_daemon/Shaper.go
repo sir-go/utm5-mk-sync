@@ -1,9 +1,9 @@
 package main
 
 import (
-	"crypto/md5"
 	"encoding/hex"
 	"fmt"
+	"hash/fnv"
 	"strconv"
 	"strings"
 )
@@ -18,14 +18,14 @@ type QRec struct {
 }
 
 func (qr *QRec) CalcSum() {
-	md5c := md5.New()
-	md5c.Write([]byte(qr.Name))
-	md5c.Write([]byte(strconv.Itoa(qr.Speed)))
-	md5c.Write([]byte(qr.Comment))
+	h := fnv.New128()
+	h.Write([]byte(qr.Name))
+	h.Write([]byte(strconv.Itoa(qr.Speed)))
+	h.Write([]byte(qr.Comment))
 	for _, ip := range qr.Target {
-		md5c.Write([]byte(ip))
+		h.Write([]byte(ip))
 	}
-	qr.Hash = hex.EncodeToString(md5c.Sum(nil))
+	qr.Hash = hex.EncodeToString(h.Sum(nil))
 }
 
 type Shaper struct {

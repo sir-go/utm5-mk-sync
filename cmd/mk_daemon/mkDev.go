@@ -3,17 +3,9 @@ package main
 import (
 	"errors"
 	"fmt"
-	"regexp"
-	"sort"
-	"strconv"
 	"strings"
 
 	"gopkg.in/routeros.v2"
-)
-
-var (
-	reSpeedQueueActual = regexp.MustCompile(`^(\d+)000000/`)
-	reIp               = regexp.MustCompile(`(?:\d+\.){3}\d+`)
 )
 
 type MkDevice struct {
@@ -36,20 +28,6 @@ func (mkd *MkDevice) Disconnect() {
 func (mkd *MkDevice) Reconnect() error {
 	mkd.Disconnect()
 	return mkd.Connect()
-}
-
-func parseIps(ips string) (res []string) {
-	res = reIp.FindAllString(ips, -1)
-	sort.Strings(res)
-	return res
-}
-
-func parseSpeedFromQueueLimit(queueValue string) (int, error) {
-	m := reSpeedQueueActual.FindStringSubmatch(queueValue)
-	if len(m) > 1 {
-		return strconv.Atoi(m[1])
-	}
-	return 0, nil
 }
 
 func (mkd *MkDevice) reTry(fn func() (*routeros.Reply, error)) (res *routeros.Reply, err error) {
@@ -180,12 +158,7 @@ func (mkd *MkDevice) QueueGetAll() (res []*QRec) {
 	mkd.QueuesUsage = 0
 
 	for _, resPair := range reply.Re {
-		speed, err := parseSpeedFromQueueLimit(resPair.Map["max-limit"])
-		if err != nil {
-			LOG.Errorf("can't parse speed from queue '%s' max-limit '%s'",
-				resPair.Map["name"], resPair.Map["max-limit"])
-			continue
-		}
+		speed := parseSpeedFromQueueLimit(resPair.Map["max-limit"])
 
 		record := QRec{
 			Name:    resPair.Map["name"],

@@ -1,8 +1,6 @@
 package main
 
 import (
-	"os"
-
 	"github.com/BurntSushi/toml"
 )
 
@@ -44,19 +42,9 @@ type (
 	}
 )
 
-func LoadConfig(confPath string) *Config {
-	conf := new(Config)
-	file, err := os.Open(confPath)
-	defer func() {
-		if file == nil {
-			return
-		}
-		eh(file.Close())
-	}()
+func LoadConfig(fileName string) *Config {
+	var conf = new(Config)
+	_, err := toml.DecodeFile(fileName, &conf)
 	eh(err)
-
-	_, err = toml.DecodeFile(confPath, &conf)
-	eh(err)
-
 	return conf
 }

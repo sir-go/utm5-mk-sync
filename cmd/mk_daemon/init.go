@@ -40,5 +40,4 @@ func initReadConf() {
 func init() {
 	initLogging()
 	initInterrupt()
-	initReadConf()
 }
