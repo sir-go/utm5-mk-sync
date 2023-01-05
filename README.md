@@ -1,5 +1,7 @@
-# A tool for synchronizing subscribers' statuses between UTM5 billing and Mikrotik routers (with auto-balancing the shaping load between routers)
+# UTM5 <-> Mikrotik sync
 [![Go](https://github.com/sir-go/utm5-mk-sync/actions/workflows/go.yml/badge.svg)](https://github.com/sir-go/utm5-mk-sync/actions/workflows/go.yml)
+
+A tool for synchronizing subscribers' statuses between UTM5 billing and Mikrotik routers (with auto-balancing the shaping load between routers)
 
 ## How it works
 Runs as a daemon and listens to the commands from the RabbitMQ broker.
